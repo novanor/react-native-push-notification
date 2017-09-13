@@ -41,6 +41,7 @@ public class RNPushNotificationAttributes {
     private static final String REPEAT_TIME = "repeatTime";
     private static final String ONGOING = "ongoing";
     private static final String INBOXSTYLE = "inboxStyle";
+    private static final String MESSAGINGSTYLE = "messagingStyle";
 
     private final String id;
     private final String message;
@@ -67,6 +68,7 @@ public class RNPushNotificationAttributes {
     private final double repeatTime;
     private final boolean ongoing;
     private final WritableMap inboxStyle;
+    private final WritableMap messagingStyle;
 
     public RNPushNotificationAttributes(Bundle bundle) {
         id = bundle.getString(ID);
@@ -94,6 +96,7 @@ public class RNPushNotificationAttributes {
         repeatTime = bundle.getDouble(REPEAT_TIME);
         ongoing = bundle.getBoolean(ONGOING);
         inboxStyle = bundle.containsKey(INBOXSTYLE) ? Arguments.fromBundle(bundle.getBundle(INBOXSTYLE)) : null;
+        messagingStyle = bundle.containsKey(MESSAGINGSTYLE) ? Arguments.fromBundle(bundle.getBundle(MESSAGINGSTYLE)) : null;
     }
 
     private RNPushNotificationAttributes(JSONObject jsonObject) {
@@ -123,6 +126,7 @@ public class RNPushNotificationAttributes {
             repeatTime = jsonObject.has(REPEAT_TIME) ? jsonObject.getDouble(REPEAT_TIME) : 0.0;
             ongoing = jsonObject.has(ONGOING) ? jsonObject.getBoolean(ONGOING) : false;
             inboxStyle = jsonObject.has(INBOXSTYLE) ? RNUtil.jsonToWritableMap(jsonObject.getJSONObject(INBOXSTYLE)) : null;
+            messagingStyle = jsonObject.has(MESSAGINGSTYLE) ? RNUtil.jsonToWritableMap(jsonObject.getJSONObject(MESSAGINGSTYLE)) : null;
         } catch (JSONException e) {
             throw new IllegalStateException("Exception while initializing RNPushNotificationAttributes from JSON", e);
         }
@@ -210,6 +214,7 @@ public class RNPushNotificationAttributes {
         bundle.putDouble(REPEAT_TIME, repeatTime);
         bundle.putBoolean(ONGOING, ongoing);
         bundle.putBundle(INBOXSTYLE, inboxStyle != null ? Arguments.toBundle(inboxStyle) : null);
+        bundle.putBundle(MESSAGINGSTYLE, messagingStyle != null ? Arguments.toBundle(messagingStyle) : null);
         return bundle;
     }
 
@@ -241,6 +246,7 @@ public class RNPushNotificationAttributes {
             jsonObject.put(REPEAT_TIME, repeatTime);
             jsonObject.put(ONGOING, ongoing);
             jsonObject.put(INBOXSTYLE, inboxStyle != null ? RNUtil.readableMapToJson(inboxStyle) : null);
+            jsonObject.put(MESSAGINGSTYLE, messagingStyle != null ? RNUtil.readableMapToJson(messagingStyle) : null);
         } catch (JSONException e) {
             Log.e(LOG_TAG, "Exception while converting RNPushNotificationAttributes to " +
                     "JSON. Returning an empty object", e);
@@ -278,6 +284,7 @@ public class RNPushNotificationAttributes {
                 ", repeatTime=" + repeatTime +
                 ", ongoing=" + ongoing +
                 ", inboxStyle=" + inboxStyle.toString() +
+                ", messagingStyle=" + messagingStyle.toString() +
                 '}';
     }
 

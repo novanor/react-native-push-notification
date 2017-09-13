@@ -18,8 +18,9 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.support.annotation.Nullable;
-import android.support.v4.app.NotificationCompat;
+import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 
 import com.dieam.reactnativepushnotification.helpers.ImageUtil;
@@ -202,7 +203,7 @@ public class RNPushNotificationHelper {
                 title = context.getPackageManager().getApplicationLabel(appInfo).toString();
             }
 
-            NotificationCompat.Builder notification = new NotificationCompat.Builder(context)
+            NotificationCompat.Builder notification = (NotificationCompat.Builder) new NotificationCompat.Builder(context)
                     .setContentTitle(title)
                     .setTicker(bundle.getString("ticker"))
                     .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -294,6 +295,33 @@ public class RNPushNotificationHelper {
                 }
 
                 notification.setStyle(inboxStyle);
+            }
+
+            if (bundle.containsKey("messagingStyle")) {
+                Bundle messagingStyleBundle = bundle.getBundle("messagingStyle");
+                String userDisplayName = messagingStyleBundle.getString("userDisplayName");
+                String conversationTitle = messagingStyleBundle.getString("conversationTitle");
+                ArrayList<Parcelable> messages = messagingStyleBundle.getParcelableArrayList("messages");
+
+                NotificationCompat.MessagingStyle messagingStyle = new NotificationCompat.MessagingStyle(userDisplayName);
+
+                if (conversationTitle != null) {
+                    messagingStyle.setConversationTitle(conversationTitle);
+                }
+                if (messages != null) {
+                    for (int i=0; i<messages.size(); i++) {
+                        Parcelable msg = messages.get(i);
+                        if (msg instanceof Bundle) {
+                            Bundle msgBundle = (Bundle) msg;
+                            String text = msgBundle.getString("text");
+                            long timestamp = (long) msgBundle.getDouble("timestamp");
+                            String sender = msgBundle.getString("sender");
+                            messagingStyle.addMessage(text, timestamp, sender);
+                        }
+                    }
+                }
+
+                notification.setStyle(messagingStyle);
             }
 
             Intent intent = new Intent(context, intentClass);
