@@ -18,14 +18,19 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.v4.app.NotificationCompat;
+import android.os.Parcelable;
+import android.support.annotation.Nullable;
+import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 
+import com.dieam.reactnativepushnotification.helpers.ImageUtil;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.WritableMap;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import static com.dieam.reactnativepushnotification.modules.RNPushNotification.LOG_TAG;
@@ -40,6 +45,10 @@ public class RNPushNotificationHelper {
     private static final int ONE_MINUTE = 60 * 1000;
     private static final long ONE_HOUR = 60 * ONE_MINUTE;
     private static final long ONE_DAY = 24 * ONE_HOUR;
+
+    private static class Options {
+        public Bitmap largeIconBitmap;
+    }
 
     public RNPushNotificationHelper(Application context) {
         this.context = context;
@@ -128,7 +137,44 @@ public class RNPushNotificationHelper {
         }
     }
 
-    public void sendToNotificationCentre(Bundle bundle) {
+    public void sendToNotificationCentre(final Bundle bundle) {
+        final String largeIcon = bundle.getString("largeIcon");
+        final boolean largeIconCircular = bundle.getBoolean("largeIconCircular", true);
+
+        if (largeIcon != null && largeIcon.contains("://")) {
+            Uri largeIconUri = null;
+            try {
+                largeIconUri = Uri.parse(largeIcon);
+            } catch(Exception ex) {
+                Log.e(LOG_TAG, "Failed to parse largeIcon url", ex);
+            }
+
+            if (largeIconUri != null) {
+                ImageUtil.request(context, largeIconUri, new ImageUtil.RequestResultCallback() {
+                    @Override
+                    public void onSuccess(Bitmap bitmap) {
+                        Options options = new Options();
+                        if (largeIconCircular) {
+                            options.largeIconBitmap = ImageUtil.createCircularBitmap(bitmap);
+                        } else {
+                            options.largeIconBitmap = bitmap;
+                        }
+                        sendToNotificationCentreWithOptions(bundle, options);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        sendToNotificationCentreWithOptions(bundle, null);
+                    }
+                });
+                return;
+            }
+        }
+
+        sendToNotificationCentreWithOptions(bundle, null);
+    }
+
+    public void sendToNotificationCentreWithOptions(Bundle bundle, @Nullable Options options) {
         try {
             Class intentClass = getMainActivityClass();
             if (intentClass == null) {
@@ -157,7 +203,7 @@ public class RNPushNotificationHelper {
                 title = context.getPackageManager().getApplicationLabel(appInfo).toString();
             }
 
-            NotificationCompat.Builder notification = new NotificationCompat.Builder(context)
+            NotificationCompat.Builder notification = (NotificationCompat.Builder) new NotificationCompat.Builder(context)
                     .setContentTitle(title)
                     .setTicker(bundle.getString("ticker"))
                     .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -203,16 +249,20 @@ public class RNPushNotificationHelper {
                 }
             }
 
-            if (largeIcon != null) {
-                largeIconResId = res.getIdentifier(largeIcon, "mipmap", packageName);
+            if (options != null && options.largeIconBitmap != null) {
+                notification.setLargeIcon(options.largeIconBitmap);
             } else {
-                largeIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
-            }
+                if (largeIcon != null) {
+                    largeIconResId = res.getIdentifier(largeIcon, "mipmap", packageName);
+                } else {
+                    largeIconResId = res.getIdentifier("ic_launcher", "mipmap", packageName);
+                }
 
-            Bitmap largeIconBitmap = BitmapFactory.decodeResource(res, largeIconResId);
+                Bitmap largeIconBitmap = BitmapFactory.decodeResource(res, largeIconResId);
 
-            if (largeIconResId != 0 && (largeIcon != null || Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
-                notification.setLargeIcon(largeIconBitmap);
+                if (largeIconResId != 0 && (largeIcon != null || !bundle.containsKey("largeIcon"))) {
+                    notification.setLargeIcon(largeIconBitmap);
+                }
             }
 
             notification.setSmallIcon(smallIconResId);
@@ -223,6 +273,56 @@ public class RNPushNotificationHelper {
             }
 
             notification.setStyle(new NotificationCompat.BigTextStyle().bigText(bigText));
+
+            if (bundle.containsKey("inboxStyle")) {
+                Bundle inboxStyleBundle = bundle.getBundle("inboxStyle");
+                String bigContentTitle = inboxStyleBundle.getString("bigContentTitle");
+                String summaryText = inboxStyleBundle.getString("summaryText");
+                ArrayList<String> lines = inboxStyleBundle.getStringArrayList("lines");
+
+                NotificationCompat.InboxStyle inboxStyle = new NotificationCompat.InboxStyle();
+
+                if (bigContentTitle != null) {
+                    inboxStyle.setBigContentTitle(bigContentTitle);
+                }
+                if (summaryText != null) {
+                    inboxStyle.setSummaryText(summaryText);
+                }
+                if (lines != null) {
+                    for (int i=0; i<lines.size(); i++) {
+                        inboxStyle.addLine(lines.get(i));
+                    }
+                }
+
+                notification.setStyle(inboxStyle);
+            }
+
+            if (bundle.containsKey("messagingStyle")) {
+                Bundle messagingStyleBundle = bundle.getBundle("messagingStyle");
+                String userDisplayName = messagingStyleBundle.getString("userDisplayName");
+                String conversationTitle = messagingStyleBundle.getString("conversationTitle");
+                ArrayList<Parcelable> messages = messagingStyleBundle.getParcelableArrayList("messages");
+
+                NotificationCompat.MessagingStyle messagingStyle = new NotificationCompat.MessagingStyle(userDisplayName);
+
+                if (conversationTitle != null) {
+                    messagingStyle.setConversationTitle(conversationTitle);
+                }
+                if (messages != null) {
+                    for (int i=0; i<messages.size(); i++) {
+                        Parcelable msg = messages.get(i);
+                        if (msg instanceof Bundle) {
+                            Bundle msgBundle = (Bundle) msg;
+                            String text = msgBundle.getString("text");
+                            long timestamp = (long) msgBundle.getDouble("timestamp");
+                            String sender = msgBundle.getString("sender");
+                            messagingStyle.addMessage(text, timestamp, sender);
+                        }
+                    }
+                }
+
+                notification.setStyle(messagingStyle);
+            }
 
             Intent intent = new Intent(context, intentClass);
             intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
